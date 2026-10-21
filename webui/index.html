@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IndexTTS 简易语音工作台</title>
+  <script>
+    if (window.location.protocol === "file:") {
+      window.location.replace("http://127.0.0.1:7865/");
+    }
+  </script>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --ink: #17202a;
+      --muted: #637083;
+      --line: #e3e8ef;
+      --brand: #2357d9;
+      --brand-soft: #edf3ff;
+      --good: #17845b;
+      --warn: #a56406;
+      --danger: #c33838;
+      --shadow: 0 10px 30px rgba(25, 38, 61, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    button, textarea, input, select { font: inherit; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: 1px solid rgba(227, 232, 239, .9);
+      background: rgba(255, 255, 255, .88);
+      backdrop-filter: blur(16px);
+    }
+    .topbar-inner, main { width: min(1120px, calc(100% - 32px)); margin: auto; }
+    .topbar-inner { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 12px;
+      color: white;
+      background: linear-gradient(135deg, #1747c6, #6e8df0);
+      font-weight: 800;
+    }
+    .brand strong { display: block; font-size: 17px; }
+    .brand small { display: block; color: var(--muted); }
+    .status-pill { padding: 7px 11px; border-radius: 999px; background: #eef1f5; color: var(--muted); white-space: nowrap; }
+    .status-pill.ready { background: #eaf8f2; color: var(--good); }
+    .status-pill.loading, .status-pill.generating { background: #fff4df; color: var(--warn); }
+    .status-pill.error { background: #fff0f0; color: var(--danger); }
+    main { padding: 28px 0 60px; }
+    .hero { margin-bottom: 22px; }
+    h1 { margin: 0 0 6px; font-size: clamp(25px, 4vw, 36px); letter-spacing: -.025em; }
+    .hero p { margin: 0; color: var(--muted); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(290px, .85fr); gap: 20px; align-items: start; }
+    .card { padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: var(--shadow); }
+    .card + .card { margin-top: 18px; }
+    .section-title { display: flex; align-items: center; gap: 10px; margin: 0 0 15px; font-size: 18px; }
+    .step { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 9px; background: var(--brand-soft); color: var(--brand); font-weight: 750; font-size: 13px; }
+    label.label { display: block; margin-bottom: 7px; font-weight: 650; }
+    textarea, input[type="text"], select {
+      width: 100%;
+      border: 1px solid #ccd4df;
+      border-radius: 11px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    textarea:focus, input[type="text"]:focus, select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(35, 87, 217, .12); }
+    textarea { min-height: 205px; padding: 14px; resize: vertical; }
+    input[type="text"], select { height: 43px; padding: 0 12px; }
+    .text-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 7px; color: var(--muted); font-size: 13px; }
+    .link-button { padding: 0; border: 0; background: transparent; color: var(--brand); cursor: pointer; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .mode {
+      position: relative;
+      display: block;
+      padding: 13px 13px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: .15s;
+    }
+    .mode:hover { border-color: #9db1ea; }
+    .mode.selected { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
+    .mode input { position: absolute; opacity: 0; }
+    .mode b { display: block; margin-bottom: 2px; }
+    .mode small { color: var(--muted); }
+    .best-tag { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 999px; color: var(--good); background: #eaf8f2; font-size: 11px; font-weight: 700; }
+    .mode-panel { margin-top: 15px; padding: 15px; border-radius: 12px; background: #f7f9fc; }
+    .hidden { display: none !important; }
+    .audio-source { display: flex; align-items: center; gap: 9px; }
+    .source-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+    .upload-button, .secondary-button {
+      border: 1px solid #ccd4df;
+      border-radius: 10px;
+      background: white;
+      color: var(--ink);
+      padding: 8px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .upload-button:hover, .secondary-button:hover { border-color: var(--brand); color: var(--brand); }
+    .upload-button input { display: none; }
+    .range-row { display: grid; grid-template-columns: 110px 1fr 52px; gap: 10px; align-items: center; margin-top: 12px; }
+    input[type="range"] { width: 100%; accent-color: var(--brand); }
+    .range-value { padding: 3px 7px; border-radius: 7px; background: white; text-align: center; font-variant-numeric: tabular-nums; }
+    .hint { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+    details { margin-top: 13px; }
+    summary { cursor: pointer; color: var(--brand); font-weight: 600; }
+    .vector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 16px; margin-top: 12px; }
+    .vector-item { display: grid; grid-template-columns: 50px 1fr 34px; gap: 7px; align-items: center; font-size: 13px; }
+    .smart-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .smart-actions button { min-height: 40px; }
+    .smart-state { color: var(--muted); font-size: 13px; }
+    .plan-list { display: grid; gap: 10px; margin-top: 13px; }
+    .plan-item { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: white; }
+    .plan-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .plan-role { padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .plan-text { margin: 8px 0; }
+    .plan-reason, .plan-effective { color: var(--muted); font-size: 12px; }
+    .plan-warning { color: var(--warn); }
+    .emotion-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .emotion-chip { padding: 2px 7px; border-radius: 999px; background: #f0f3f7; color: #455368; font-size: 12px; }
+    .prosody-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .prosody-chip { padding: 2px 7px; border-radius: 999px; background: #eef8f4; color: #187052; font-size: 12px; }
+    .plan-item details { margin-top: 8px; }
+    .plan-vector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-top: 9px; }
+    .plan-vector-item { display: grid; grid-template-columns: 46px 1fr 32px; gap: 7px; align-items: center; font-size: 12px; }
+    .plan-prosody-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 10px 0 12px; }
+    .plan-prosody-item { display: grid; grid-template-columns: 54px 1fr 58px; gap: 7px; align-items: center; font-size: 12px; }
+    .performance-list { display: grid; gap: 10px; margin-top: 13px; }
+    .performance-item { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: white; }
+    .performance-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .performance-status { color: var(--muted); font-size: 12px; }
+    .performance-item audio { height: 34px; margin: 9px 0 0; }
+    .recording { border-color: var(--danger); color: var(--danger); }
+    .library-card { margin-bottom: 20px; }
+    .library-progress-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .library-progress { height: 9px; overflow: hidden; border-radius: 999px; background: #e8edf4; }
+    .library-progress-fill { width: 0; height: 100%; border-radius: inherit; background: var(--brand); transition: width .2s; }
+    .library-stage { margin-top: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #f8faff; }
+    .library-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .library-number { color: var(--brand); font-weight: 750; }
+    .library-cue { margin-top: 12px; color: var(--warn); font-weight: 700; }
+    .library-text { margin: 8px 0 16px; font-size: clamp(19px, 2.6vw, 24px); line-height: 1.75; font-weight: 650; }
+    .library-actions { display: grid; grid-template-columns: auto minmax(180px, 1fr) auto; gap: 10px; }
+    .library-actions .primary-button { min-height: 44px; }
+    .library-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .library-tools audio { max-width: 520px; margin: 0; height: 38px; }
+    .recording-time { color: var(--danger); font-weight: 750; }
+    .generate-row { display: flex; gap: 12px; margin-top: 18px; }
+    .primary-button {
+      min-height: 48px;
+      flex: 1;
+      border: 0;
+      border-radius: 12px;
+      color: white;
+      background: var(--brand);
+      font-weight: 750;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(35, 87, 217, .22);
+    }
+    .primary-button:hover { background: #1949c3; }
+    .primary-button:disabled { opacity: .55; cursor: wait; box-shadow: none; }
+    .notice { margin-top: 12px; padding: 10px 12px; border-left: 3px solid #e9ad43; border-radius: 7px; background: #fff8e9; color: #765016; font-size: 13px; }
+    .result-empty { padding: 26px 10px; color: var(--muted); text-align: center; }
+    .result-box { padding: 15px; border-radius: 13px; background: #f6f9ff; }
+    audio { display: block; width: 100%; margin: 12px 0; }
+    .result-actions { display: flex; gap: 9px; flex-wrap: wrap; }
+    .result-actions a { text-decoration: none; }
+    .metric-line { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+    .metric { padding: 4px 8px; border-radius: 7px; background: white; color: var(--muted); font-size: 12px; }
+    .history { display: grid; gap: 10px; }
+    .history-item { padding: 11px 12px; border: 1px solid var(--line); border-radius: 11px; }
+    .history-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+    .history-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    .history-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .history audio { margin: 0; height: 34px; }
+    .rating-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .rating-button { padding: 5px 8px; border: 1px solid #d4dbe5; border-radius: 8px; background: white; color: var(--muted); cursor: pointer; font-size: 12px; }
+    .rating-button:hover { border-color: var(--brand); color: var(--brand); }
+    .rating-button.selected { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+    .system-list { display: grid; gap: 9px; }
+    .system-line { display: flex; justify-content: space-between; gap: 12px; }
+    .system-line span:first-child { color: var(--muted); }
+    .spinner { display: inline-block; width: 14px; height: 14px; margin-right: 7px; border: 2px solid rgba(255,255,255,.45); border-top-color: white; border-radius: 50%; vertical-align: -2px; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 820px) {
+      .layout { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      .topbar-inner, main { width: min(100% - 20px, 1120px); }
+      .topbar-inner { min-height: 62px; }
+      .brand small { display: none; }
+      main { padding-top: 18px; }
+      .card { padding: 17px; border-radius: 15px; }
+      .mode-grid, .vector-grid, .plan-vector-grid, .plan-prosody-grid { grid-template-columns: 1fr; }
+      .generate-row { flex-direction: column; }
+      .library-actions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark">TTS</div>
+        <div><strong>IndexTTS 简易语音工作台</strong><small>本机运行 · 不上传云端</small></div>
+      </div>
+      <div id="statusPill" class="status-pill">正在连接…</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>输入文案，生成自然语音</h1>
+      <p>建议先用“自然连贯”模式。从上到下完成 3 步即可生成。</p>
+    </section>
+
+    <section class="card library-card">
+      <h2 class="section-title"><span class="step">录</span>建立真人情绪库</h2>
+      <p class="hint">按提示自然朗读正文，不读表演提示。点击开始，读完再点一次即可保存；每条最长 15 秒。</p>
+      <div class="library-progress-head"><b id="libraryProgressText">正在读取录音稿…</b><span id="librarySaveState" class="smart-state"></span></div>
+      <div class="library-progress"><div id="libraryProgressFill" class="library-progress-fill"></div></div>
+      <div id="libraryStage" class="library-stage">
+        <div class="result-empty">正在准备录音内容…</div>
+      </div>
+      <div class="library-tools">
+        <span class="hint">录错可以直接重录；旧录音不会删除。</span>
+        <button id="openLibraryFolderButton" class="secondary-button" type="button">打开录音目录</button>
+      </div>
+    </section>
+
+    <div class="layout">
+      <div>
+        <section class="card">
+          <h2 class="section-title"><span class="step">1</span>输入文案</h2>
+          <textarea id="text" maxlength="5000" placeholder="在这里输入要说的内容…"></textarea>
+          <div class="text-meta"><button id="sampleButton" class="link-button" type="button">填入示例文案</button><span><b id="charCount">0</b> / 5000 字</span></div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title"><span class="step">2</span>选择音色和情绪</h2>
+          <label class="label">音色参考（谁在说话）</label>
+          <div class="audio-source">
+            <span id="voiceName" class="source-name">尚未选择，请上传授权音频</span>
+            <label class="upload-button">更换音色<input id="voiceFile" type="file" accept="audio/*"></label>
+          </div>
+
+          <label class="label" style="margin-top:18px">情绪方式</label>
+          <div id="modeGrid" class="mode-grid">
+            <label class="mode selected"><input type="radio" name="mode" value="emotion_audio" checked><b>自然连贯 <span class="best-tag">推荐起点</span></b><small>整段生成，保持上下文连贯</small></label>
+            <label class="mode"><input type="radio" name="mode" value="emotion_library"><b>真人情绪库 <span class="best-tag">需先录制</span></b><small>按文案语义自动匹配真人表达</small></label>
+            <label class="mode"><input type="radio" name="mode" value="voice_only"><b>纯音色</b><small>不加独立情绪控制</small></label>
+            <label class="mode"><input type="radio" name="mode" value="text_auto"><b>文本自动情绪</b><small>让 Qwen 分析整段文案</small></label>
+            <label class="mode"><input type="radio" name="mode" value="manual_vector"><b>手动情绪</b><small>实验性的 8 维配方</small></label>
+            <label class="mode"><input type="radio" name="mode" value="smart_script"><b>逐句情绪编排</b><small>控制更细，但可能产生逐句播报感</small></label>
+            <label class="mode"><input type="radio" name="mode" value="performance_script"><b>真人带读增强</b><small>你读节奏，授权音色复现情绪</small></label>
+          </div>
+
+          <div id="emotionAudioPanel" class="mode-panel">
+            <label class="label">情绪参考（怎么说）</label>
+            <div class="audio-source">
+              <span id="emotionName" class="source-name">尚未选择，请上传情绪参考</span>
+              <label class="upload-button">更换情绪<input id="emotionFile" type="file" accept="audio/*"></label>
+            </div>
+            <label class="hint" style="display:block;margin-top:12px"><input id="autoPunctuation" type="checkbox"> 自动整理列表标点和停顿层级</label>
+          </div>
+
+          <div id="textAutoPanel" class="mode-panel hidden">
+            <b>文本自动情绪</b>
+            <p class="hint">直接分析上方主文案，不使用额外情绪提示词。首次使用会额外加载约 1.1 GB 模型。</p>
+          </div>
+
+          <div id="emotionLibraryPanel" class="mode-panel hidden">
+            <b>真人情绪库</b>
+            <p class="hint">系统会识别陈述、转折、加速、提醒、强调和收尾等表达，自动选择最接近的真人录音；仍由你选择的授权音色说话。</p>
+          </div>
+
+          <div id="manualPanel" class="mode-panel hidden">
+            <b>手动情绪向量</b>
+            <div id="vectorGrid" class="vector-grid"></div>
+          </div>
+
+          <div id="smartPanel" class="mode-panel hidden">
+            <b>智能情绪编排</b>
+            <p class="hint">识别旁白、对白、疑问、低声、揭示、呼喊和悬念，并逐段安排情绪、语速与停顿。分析结果会先展示给你确认。</p>
+            <div class="smart-actions">
+              <button id="analyzeButton" class="secondary-button" type="button">分析文案情绪</button>
+              <span id="smartState" class="smart-state">尚未分析</span>
+            </div>
+            <div id="planList" class="plan-list"></div>
+          </div>
+
+          <div id="performancePanel" class="mode-panel hidden">
+            <b>真人带读增强</b>
+            <p class="hint">先按自然口语读每一段。系统只提取每段的表达情绪和整体快慢，最终仍使用上方选择的授权音色；每段录音请控制在 15 秒以内。</p>
+            <div class="smart-actions">
+              <button id="preparePerformanceButton" class="secondary-button" type="button">准备带读</button>
+              <span id="performanceState" class="smart-state">尚未准备</span>
+            </div>
+            <div id="performanceList" class="performance-list"></div>
+          </div>
+
+          <div id="alphaRow" class="range-row">
+            <span>情绪强度</span><input id="alpha" type="range" min="0" max="1" step="0.05" value="0.75"><span id="alphaValue" class="range-value">0.75</span>
+          </div>
+
+          <details>
+            <summary>高级设置（通常不用改）</summary>
+            <div class="grid-2" style="margin-top:12px">
+              <div><label class="label" for="lang">文案语言</label><select id="lang"><option value="ZH">中文</option><option value="EN">English</option><option value="JA">日本语</option></select></div>
+              <div><label class="label" for="outputName">文件名标记</label><input id="outputName" type="text" value="voice" maxlength="60"></div>
+            </div>
+            <div class="range-row"><span>全局语速</span><input id="duration" type="range" min="0.8" max="1.2" step="0.05" value="1"><span id="durationValue" class="range-value">1.00</span></div>
+            <p class="hint">大于 1 更慢，小于 1 更快。智能编排会在此基础上逐段调整。</p>
+          </details>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title"><span class="step">3</span>生成并试听</h2>
+          <div class="generate-row"><button id="generateButton" class="primary-button" type="button">生成语音</button><button id="openFolderButton" class="secondary-button" type="button">打开输出目录</button></div>
+          <div class="notice">首次会加载模型。Mac 24 GB 上可能产生较多 swap；请一次只生成一条。</div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">自然度 A/B 校准</h2>
+          <p id="comparisonHint" class="hint">使用上方同一篇文案顺序生成两条，只比较“整段连贯”和“逐句编排”。生成后不会显示技术参数，你只需要凭听感选择。</p>
+          <button id="comparisonButton" class="secondary-button" type="button">生成同文案 A/B</button>
+          <div id="comparisonResult" style="margin-top:12px"><div class="result-empty">尚未生成对比</div></div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2 class="section-title">生成结果</h2>
+          <div id="result"><div class="result-empty">还没有生成音频</div></div>
+        </section>
+        <section class="card">
+          <h2 class="section-title">系统状态</h2>
+          <div class="system-list">
+            <div class="system-line"><span>当前阶段</span><b id="phaseText">检查中</b></div>
+            <div class="system-line"><span>系统空闲内存</span><b id="memoryText">—</b></div>
+            <div class="system-line"><span>Swap 已用</span><b id="swapText">—</b></div>
+            <div class="system-line"><span>MPS driver</span><b id="mpsText">—</b></div>
+          </div>
+          <p id="statusMessage" class="hint"></p>
+        </section>
+        <section id="baselineCard" class="card hidden">
+          <h2 class="section-title">可选对比基线</h2>
+          <audio id="baselineAudio" controls preload="none"></audio>
+          <p class="hint">“更好”只代表相对改善，不等于已经像真人。只有你的真实选择才会用于下一轮。</p>
+          <p id="preferenceStats" class="hint">还没有偏好评分</p>
+        </section>
+        <section class="card">
+          <h2 class="section-title">最近生成</h2>
+          <p class="hint">每条只选一个最符合真实听感的评价。</p>
+          <div id="history" class="history"><div class="result-empty">暂无记录</div></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const SAMPLE_TEXT = `如果一家公司只会追逐短期热点，结果往往是，看起来机会很多，却始终抓不住真正的主线。
+但现在，人工智能产业链正在出现一个值得重视的变化。
+订单、产能，还有技术升级，正在同时加速。
+所以注意，这个时候最重要的，不是盲目追高。
+    真正值得我们持续跟踪的，是那些业绩能够不断兑现的公司。`;
+    const vectorLabels = ["高兴", "愤怒", "悲伤", "害怕", "反感", "低落", "惊讶", "平静"];
+    const vectorDefaults = [0.6, 0, 0, 0, 0, 0, 0.4, 0.7];
+    let voicePath = "";
+    let emotionPath = "";
+    let busy = false;
+    let emotionPlan = [];
+    let analyzedText = "";
+    let performancePlan = [];
+    let performanceText = "";
+    let activeRecording = null;
+    let emotionLibraryItems = [];
+    let emotionLibraryIndex = 0;
+    let activeLibraryRecording = null;
+    let libraryTimer = null;
+    let currentResultFilename = "";
+    let comparisonConfig = {next_dimension:"pipeline", recommended_duration:1.0};
+    let appliedRecommendation = false;
+
+    const $ = id => document.getElementById(id);
+    const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const formatMemory = value => value == null ? "—" : `${value.toFixed(2)} GiB`;
+    const formatSwap = value => value == null ? "—" : `${(value / 1024).toFixed(2)} GiB`;
+    const ratingLabels = {worse:"较差", same:"接近", better:"更好", human:"像真人"};
+
+    function ratingControls(filename, selected = null) {
+      return `<div class="rating-row">${Object.entries(ratingLabels).map(([value, label]) => `<button class="rating-button${selected === value ? " selected" : ""}" type="button" data-rating-file="${escapeHtml(filename)}" data-rating="${value}">${label}</button>`).join("")}</div>`;
+    }
+
+    vectorLabels.forEach((label, index) => {
+      const item = document.createElement("label");
+      item.className = "vector-item";
+      item.innerHTML = `<span>${label}</span><input class="vector" data-index="${index}" type="range" min="0" max="1.2" step="0.1" value="${vectorDefaults[index]}"><output>${vectorDefaults[index].toFixed(1)}</output>`;
+      item.querySelector("input").addEventListener("input", event => event.target.nextElementSibling.value = Number(event.target.value).toFixed(1));
+      $("vectorGrid").appendChild(item);
+    });
+
+    function selectedMode() { return document.querySelector('input[name="mode"]:checked').value; }
+    function refreshMode() {
+      const mode = selectedMode();
+      document.querySelectorAll(".mode").forEach(item => item.classList.toggle("selected", item.querySelector("input").checked));
+      $("emotionAudioPanel").classList.toggle("hidden", mode !== "emotion_audio");
+      $("emotionLibraryPanel").classList.toggle("hidden", mode !== "emotion_library");
+      $("textAutoPanel").classList.toggle("hidden", mode !== "text_auto");
+      $("manualPanel").classList.toggle("hidden", mode !== "manual_vector");
+      $("smartPanel").classList.toggle("hidden", mode !== "smart_script");
+      $("performancePanel").classList.toggle("hidden", mode !== "performance_script");
+      $("alphaRow").classList.toggle("hidden", mode === "voice_only");
+      if (mode === "emotion_audio") $("alpha").value = "0.75";
+      if (mode === "emotion_library") $("alpha").value = "0.60";
+      if (mode === "text_auto") $("alpha").value = "0.60";
+      if (mode === "manual_vector" || mode === "smart_script" || mode === "performance_script") $("alpha").value = "0.75";
+      $("generateButton").textContent = mode === "smart_script" ? "按情绪方案生成" : mode === "performance_script" ? "生成带读增强版" : mode === "emotion_library" ? "用真人情绪库生成" : "生成语音";
+      updateRanges();
+    }
+
+    function updateRanges() {
+      $("alphaValue").textContent = Number($("alpha").value).toFixed(2);
+      $("durationValue").textContent = Number($("duration").value).toFixed(2);
+      emotionPlan.forEach((_, index) => refreshPlanSummary(index));
+    }
+
+    function refreshPlanSummary(index) {
+      const item = emotionPlan[index];
+      if (!item) return;
+      const alpha = Number($("alpha").value);
+      const effective = item.vector.map(value => Number((value * alpha).toFixed(4)));
+      const total = effective.reduce((sum, value) => sum + value, 0);
+      item.effective_vector = effective;
+      item.effective_total = Number(total.toFixed(4));
+      const summary = document.querySelector(`[data-plan-summary="${index}"]`);
+      if (summary) {
+        summary.textContent = `α 后总量 ${total.toFixed(3)}${total > 1 ? " · 已超过 1，保留你的原始混合方式" : ""}`;
+        summary.classList.toggle("plan-warning", total > 1);
+      }
+    }
+
+    function refreshPlanProsody(index) {
+      const item = emotionPlan[index];
+      if (!item) return;
+      const speed = document.querySelector(`[data-plan-speed="${index}"]`);
+      const before = document.querySelector(`[data-plan-before="${index}"]`);
+      const after = document.querySelector(`[data-plan-after="${index}"]`);
+      if (speed) speed.textContent = `语速 ${Number(item.duration_factor).toFixed(2)}`;
+      if (before) before.textContent = `句前 ${Number(item.pause_before_ms)}ms`;
+      if (after) after.textContent = `句后 ${Number(item.pause_after_ms)}ms`;
+    }
+
+    function renderEmotionPlan() {
+      if (!emotionPlan.length) {
+        $("planList").innerHTML = "";
+        return;
+      }
+      $("planList").innerHTML = emotionPlan.map((item, segmentIndex) => {
+        const chips = item.vector.map((value, index) => ({label:vectorLabels[index], value})).filter(item => item.value >= 0.1).sort((a, b) => b.value - a.value).slice(0, 3).map(item => `<span class="emotion-chip">${item.label} ${item.value.toFixed(2)}</span>`).join("");
+        const controls = item.vector.map((value, vectorIndex) => `<label class="plan-vector-item"><span>${vectorLabels[vectorIndex]}</span><input class="plan-vector" data-segment="${segmentIndex}" data-vector="${vectorIndex}" type="range" min="0" max="1.2" step="0.05" value="${value}"><output>${value.toFixed(2)}</output></label>`).join("");
+        const speed = Number(item.duration_factor ?? 1);
+        const pauseBefore = Number(item.pause_before_ms ?? 0);
+        const pauseAfter = Number(item.pause_after_ms ?? 180);
+        return `<div class="plan-item"><div class="plan-head"><b>第 ${segmentIndex + 1} 段</b><span class="plan-role">${escapeHtml(item.role)}</span></div><div class="plan-text">${escapeHtml(item.text)}</div><div class="emotion-chips">${chips}</div><div class="prosody-chips"><span class="prosody-chip" data-plan-speed="${segmentIndex}">语速 ${speed.toFixed(2)}</span><span class="prosody-chip" data-plan-before="${segmentIndex}">句前 ${pauseBefore}ms</span><span class="prosody-chip" data-plan-after="${segmentIndex}">句后 ${pauseAfter}ms</span><span class="prosody-chip">能量 ${escapeHtml(item.energy ?? "中")}</span></div><div class="plan-reason">${escapeHtml(item.reason)} · 置信度${escapeHtml(item.confidence)}</div><div class="plan-effective${item.effective_total > 1 ? " plan-warning" : ""}" data-plan-summary="${segmentIndex}">α 后总量 ${Number(item.effective_total).toFixed(3)}${item.effective_total > 1 ? " · 已超过 1，保留你的原始混合方式" : ""}</div><details><summary>手动微调这一段</summary><div class="plan-prosody-grid"><label class="plan-prosody-item"><span>语速</span><input class="plan-prosody" data-segment="${segmentIndex}" data-field="duration_factor" type="range" min="0.8" max="1.2" step="0.01" value="${speed}"><output>${speed.toFixed(2)}</output></label><label class="plan-prosody-item"><span>句前</span><input class="plan-prosody" data-segment="${segmentIndex}" data-field="pause_before_ms" type="range" min="0" max="600" step="10" value="${pauseBefore}"><output>${pauseBefore}ms</output></label><label class="plan-prosody-item"><span>句后</span><input class="plan-prosody" data-segment="${segmentIndex}" data-field="pause_after_ms" type="range" min="0" max="600" step="10" value="${pauseAfter}"><output>${pauseAfter}ms</output></label></div><div class="plan-vector-grid">${controls}</div></details></div>`;
+      }).join("");
+      document.querySelectorAll(".plan-vector").forEach(input => input.addEventListener("input", event => {
+        const segmentIndex = Number(event.target.dataset.segment);
+        const vectorIndex = Number(event.target.dataset.vector);
+        emotionPlan[segmentIndex].vector[vectorIndex] = Number(event.target.value);
+        event.target.nextElementSibling.value = Number(event.target.value).toFixed(2);
+        refreshPlanSummary(segmentIndex);
+      }));
+      document.querySelectorAll(".plan-prosody").forEach(input => input.addEventListener("input", event => {
+        const segmentIndex = Number(event.target.dataset.segment);
+        const field = event.target.dataset.field;
+        const value = Number(event.target.value);
+        emotionPlan[segmentIndex][field] = value;
+        event.target.nextElementSibling.value = field === "duration_factor" ? value.toFixed(2) : `${value}ms`;
+        refreshPlanProsody(segmentIndex);
+      }));
+    }
+
+    function renderPerformancePlan() {
+      if (!performancePlan.length) {
+        $("performanceList").innerHTML = "";
+        return;
+      }
+      $("performanceList").innerHTML = performancePlan.map((item, index) => {
+        const isRecording = activeRecording?.index === index;
+        const status = isRecording ? "正在录音…" : item.emotion_path ? `已录 ${item.duration_seconds.toFixed(1)} 秒` : "待录";
+        const label = isRecording ? "停止并保存" : item.emotion_path ? "重新录音" : "开始录音";
+        const player = item.preview_url ? `<audio controls preload="metadata" src="${item.preview_url}"></audio>` : "";
+        return `<div class="performance-item"><div class="performance-head"><b>第 ${index + 1} 段</b><span class="performance-status">${status}</span></div><div class="plan-text">${escapeHtml(item.text).replace(/\n/g, "<br>")}</div><button class="secondary-button${isRecording ? " recording" : ""}" type="button" data-performance-record="${index}">${label}</button>${player}</div>`;
+      }).join("");
+      const finished = performancePlan.filter(item => item.emotion_path).length;
+      $("performanceState").textContent = `已录 ${finished} / ${performancePlan.length} 段`;
+    }
+
+    function mergeAudioChunks(chunks) {
+      const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const merged = new Float32Array(length);
+      let offset = 0;
+      chunks.forEach(chunk => { merged.set(chunk, offset); offset += chunk.length; });
+      return merged;
+    }
+
+    function encodeWav(samples, sampleRate) {
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      const writeText = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+      writeText(0, "RIFF");
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeText(8, "WAVE");
+      writeText(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeText(36, "data");
+      view.setUint32(40, samples.length * 2, true);
+      samples.forEach((sample, index) => {
+        const clipped = Math.max(-1, Math.min(1, sample));
+        view.setInt16(44 + index * 2, clipped < 0 ? clipped * 32768 : clipped * 32767, true);
+      });
+      return new Blob([buffer], {type:"audio/wav"});
+    }
+
+    function renderEmotionLibrary() {
+      if (!emotionLibraryItems.length) {
+        $("libraryStage").innerHTML = '<div class="result-empty">录音稿读取失败，请刷新页面重试。</div>';
+        return;
+      }
+      const item = emotionLibraryItems[emotionLibraryIndex];
+      const isRecording = activeLibraryRecording?.index === emotionLibraryIndex;
+      const completed = emotionLibraryItems.filter(entry => entry.recorded).length;
+      const percent = Math.round(completed / emotionLibraryItems.length * 100);
+      $("libraryProgressText").textContent = `已完成 ${completed} / ${emotionLibraryItems.length} 条`;
+      $("libraryProgressFill").style.width = `${percent}%`;
+      const status = isRecording
+        ? '<span id="libraryRecordingTime" class="recording-time">正在录音 0.0 / 15 秒</span>'
+        : item.recorded
+          ? `<span class="performance-status">已录 ${Number(item.duration_seconds).toFixed(1)} 秒</span>`
+          : '<span class="performance-status">尚未录制</span>';
+      const player = item.url
+        ? `<audio controls preload="metadata" src="${item.url}${item.version ? `?v=${item.version}` : ""}"></audio>`
+        : '<span class="hint">保存后可在这里试听</span>';
+      $("libraryStage").innerHTML = `
+        <div class="library-head"><span class="library-number">第 ${item.number} 条 · ${escapeHtml(item.part)}</span>${status}</div>
+        <div class="library-cue">表演提示（不要读）：${escapeHtml(item.cue)}</div>
+        <div class="library-text">${escapeHtml(item.text)}</div>
+        <div class="library-actions">
+          <button class="secondary-button" type="button" data-library-move="-1" ${emotionLibraryIndex === 0 || isRecording ? "disabled" : ""}>上一条</button>
+          <button class="primary-button${isRecording ? " recording" : ""}" type="button" data-library-record>${isRecording ? "停止并保存" : item.recorded ? "重新录音" : "开始录音"}</button>
+          <button class="secondary-button" type="button" data-library-move="1" ${emotionLibraryIndex === emotionLibraryItems.length - 1 || isRecording ? "disabled" : ""}>下一条</button>
+        </div>
+        <div class="library-tools">${player}<span class="hint">目标 8–15 秒</span></div>`;
+    }
+
+    async function refreshEmotionLibrary() {
+      try {
+        const data = await api("/api/emotion-library");
+        emotionLibraryItems = data.items;
+        const firstPending = emotionLibraryItems.findIndex(item => !item.recorded);
+        emotionLibraryIndex = firstPending >= 0 ? firstPending : 0;
+        $("librarySaveState").textContent = data.completed === data.total ? "全部录完" : "可以开始";
+        renderEmotionLibrary();
+      } catch (error) {
+        $("libraryProgressText").textContent = "录音稿读取失败";
+        $("librarySaveState").textContent = error.message;
+        $("libraryStage").innerHTML = `<div class="result-empty">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function moveEmotionLibrary(direction) {
+      if (activeLibraryRecording) return;
+      emotionLibraryIndex = Math.max(0, Math.min(emotionLibraryItems.length - 1, emotionLibraryIndex + direction));
+      $("librarySaveState").textContent = "";
+      renderEmotionLibrary();
+    }
+
+    function updateLibraryTimer() {
+      const timer = $("libraryRecordingTime");
+      if (!timer || !activeLibraryRecording) return;
+      const elapsed = Math.min(15, (performance.now() - activeLibraryRecording.startedAt) / 1000);
+      timer.textContent = `正在录音 ${elapsed.toFixed(1)} / 15 秒`;
+    }
+
+    async function toggleEmotionLibraryRecording() {
+      if (activeLibraryRecording) {
+        await stopEmotionLibraryRecording();
+        return;
+      }
+      if (activeRecording) {
+        alert("请先停止上方正在录制的带读片段。");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
+      const context = new AudioContext();
+      const source = context.createMediaStreamSource(stream);
+      const processor = context.createScriptProcessor(4096, 1, 1);
+      const chunks = [];
+      processor.onaudioprocess = event => chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      source.connect(processor);
+      processor.connect(context.destination);
+      activeLibraryRecording = {index:emotionLibraryIndex, stream, context, source, processor, chunks, startedAt:performance.now()};
+      libraryTimer = setInterval(updateLibraryTimer, 200);
+      activeLibraryRecording.autoStop = setTimeout(() => stopEmotionLibraryRecording().catch(error => alert(error.message)), 15000);
+      $("librarySaveState").textContent = "正在录音";
+      renderEmotionLibrary();
+    }
+
+    async function stopEmotionLibraryRecording() {
+      const recording = activeLibraryRecording;
+      if (!recording) return;
+      activeLibraryRecording = null;
+      clearInterval(libraryTimer);
+      clearTimeout(recording.autoStop);
+      libraryTimer = null;
+      recording.processor.onaudioprocess = null;
+      recording.processor.disconnect();
+      recording.source.disconnect();
+      recording.stream.getTracks().forEach(track => track.stop());
+      const sampleRate = recording.context.sampleRate;
+      await recording.context.close();
+      const samples = mergeAudioChunks(recording.chunks);
+      const duration = samples.length / sampleRate;
+      if (duration < 0.6) {
+        $("librarySaveState").textContent = "没有保存";
+        renderEmotionLibrary();
+        alert("这一条太短，请重新录制。");
+        return;
+      }
+      const blob = encodeWav(samples, sampleRate);
+      const data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const item = emotionLibraryItems[recording.index];
+      $("librarySaveState").textContent = `正在保存第 ${item.number} 条…`;
+      renderEmotionLibrary();
+      try {
+        const response = await api("/api/emotion-library-recording", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({number:item.number, data})});
+        item.recorded = true;
+        item.duration_seconds = response.result.duration_seconds;
+        item.url = response.result.url;
+        item.version = Date.now();
+        const next = emotionLibraryItems.findIndex((entry, index) => index > recording.index && !entry.recorded);
+        const remaining = emotionLibraryItems.findIndex(entry => !entry.recorded);
+        emotionLibraryIndex = next >= 0 ? next : remaining >= 0 ? remaining : recording.index;
+        $("librarySaveState").textContent = remaining >= 0 ? `第 ${item.number} 条已保存，已进入下一条` : "64 条全部录完";
+      } catch (error) {
+        emotionLibraryIndex = recording.index;
+        $("librarySaveState").textContent = "保存失败";
+        alert(error.message);
+      }
+      renderEmotionLibrary();
+    }
+
+    async function preparePerformance() {
+      const text = $("text").value.trim();
+      if (!text) { alert("请先输入文案。"); $("text").focus(); return; }
+      if (activeRecording) { alert("请先停止当前录音。"); return; }
+      const button = $("preparePerformanceButton");
+      button.disabled = true;
+      try {
+        const data = await api("/api/prepare-performance", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
+        performancePlan.forEach(item => item.preview_url && URL.revokeObjectURL(item.preview_url));
+        performancePlan = data.result.segments.map(item => ({...item, emotion_path:null, duration_seconds:null, preview_url:null}));
+        performanceText = data.result.text;
+        renderPerformancePlan();
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function startPerformanceRecording(index) {
+      if (activeLibraryRecording) {
+        alert("请先停止情绪库录音。");
+        return;
+      }
+      if (activeRecording) {
+        if (activeRecording.index === index) await stopPerformanceRecording();
+        else alert("请先停止正在录制的那一段。");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
+      const context = new AudioContext();
+      const source = context.createMediaStreamSource(stream);
+      const processor = context.createScriptProcessor(4096, 1, 1);
+      const chunks = [];
+      processor.onaudioprocess = event => chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      source.connect(processor);
+      processor.connect(context.destination);
+      activeRecording = {index, stream, context, source, processor, chunks};
+      renderPerformancePlan();
+    }
+
+    async function stopPerformanceRecording() {
+      const recording = activeRecording;
+      if (!recording) return;
+      activeRecording = null;
+      recording.processor.onaudioprocess = null;
+      recording.processor.disconnect();
+      recording.source.disconnect();
+      recording.stream.getTracks().forEach(track => track.stop());
+      const sampleRate = recording.context.sampleRate;
+      await recording.context.close();
+      const samples = mergeAudioChunks(recording.chunks);
+      const duration = samples.length / sampleRate;
+      if (duration < 0.6 || duration > 15) {
+        renderPerformancePlan();
+        alert(duration > 15 ? "这一段超过 15 秒，请拆短或重录。" : "这一段太短，请重新录制。");
+        return;
+      }
+      const blob = encodeWav(samples, sampleRate);
+      const file = new File([blob], `带读_${recording.index + 1}.wav`, {type:"audio/wav"});
+      $("performanceState").textContent = `正在保存第 ${recording.index + 1} 段…`;
+      try {
+        const saved = await upload(file, "performance");
+        const item = performancePlan[recording.index];
+        if (item.preview_url) URL.revokeObjectURL(item.preview_url);
+        item.emotion_path = saved.path;
+        item.duration_seconds = duration;
+        item.preview_url = URL.createObjectURL(blob);
+      } catch (error) {
+        alert(error.message);
+      }
+      renderPerformancePlan();
+    }
+
+    async function analyzeEmotion() {
+      if (busy) return;
+      const text = $("text").value.trim();
+      if (!text) { alert("请先输入文案。"); $("text").focus(); return; }
+      busy = true;
+      const button = $("analyzeButton");
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner" style="border-color:rgba(35,87,217,.25);border-top-color:var(--brand)"></span>正在分析…';
+      $("smartState").textContent = "正在逐句识别";
+      try {
+        const data = await api("/api/analyze-emotion", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, emo_alpha:Number($("alpha").value)})});
+        emotionPlan = data.result.segments.map(item => ({
+          duration_factor: 1,
+          pause_before_ms: 0,
+          pause_after_ms: 180,
+          energy: "中",
+          ...item
+        }));
+        analyzedText = text;
+        const learnedCount = data.result.learned_roles?.length || 0;
+        $("smartState").textContent = `已分析 ${emotionPlan.length} 段 · ${data.result.elapsed_seconds.toFixed(1)} 秒${learnedCount ? ` · 已应用 ${learnedCount} 类偏好` : ""}`;
+        renderEmotionPlan();
+      } catch (error) {
+        $("smartState").textContent = "分析失败";
+        alert(error.message);
+      } finally {
+        busy = false;
+        button.disabled = false;
+        button.textContent = "重新分析";
+        await refreshStatus();
+      }
+    }
+
+    async function api(url, options = {}) {
+      const response = await fetch(url, options);
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+
+    async function ratingApi(url, options) {
+      let lastError;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try { return await api(url, options); }
+        catch (error) {
+          lastError = error;
+          await new Promise(resolve => setTimeout(resolve, 1200));
+        }
+      }
+      throw lastError;
+    }
+
+    async function upload(file, kind) {
+      if (!file) return;
+      if (file.size > 30 * 1024 * 1024) throw new Error("音频不能超过 30 MB。");
+      const data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const response = await api("/api/upload", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({filename:file.name, data})});
+      if (kind === "voice") { voicePath = response.result.path; $("voiceName").textContent = file.name; }
+      else if (kind === "emotion") { emotionPath = response.result.path; $("emotionName").textContent = file.name; }
+      return response.result;
+    }
+
+    async function refreshStatus() {
+      try {
+        const state = await api("/api/status");
+        if (!voicePath && state.default_voice) {
+          voicePath = state.default_voice;
+          $("voiceName").textContent = state.default_voice.split("/").pop();
+        }
+        if (!emotionPath && state.default_emotion) {
+          emotionPath = state.default_emotion;
+          $("emotionName").textContent = state.default_emotion.split("/").pop();
+        }
+        $("statusPill").className = `status-pill ${state.phase}`;
+        $("statusPill").textContent = state.phase === "generating" ? "正在生成" : state.phase === "loading" ? "正在加载" : state.phase === "error" ? "需要处理" : "就绪";
+        $("phaseText").textContent = state.phase;
+        $("memoryText").textContent = state.memory.memory_free_percent == null ? "—" : `${state.memory.memory_free_percent}%`;
+        $("swapText").textContent = formatSwap(state.memory.swap_used_mib);
+        $("mpsText").textContent = formatMemory(state.memory.mps_driver_gib);
+        $("statusMessage").textContent = state.message || "";
+      } catch (error) {
+        $("statusPill").className = "status-pill error";
+        $("statusPill").textContent = "连接中断";
+      }
+    }
+
+    async function refreshHistory() {
+      const data = await api("/api/history");
+      $("history").innerHTML = data.items.length ? data.items.map(item => `<div class="history-item"><div class="history-head"><span class="history-name" title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</span><span class="history-meta">${item.modified}</span></div><audio controls preload="none" src="${item.url}"></audio>${ratingControls(item.filename, item.rating)}</div>`).join("") : '<div class="result-empty">暂无记录</div>';
+    }
+
+    function showPreferenceStats(summary) {
+      const counts = summary.counts;
+      const learnedCount = Object.keys(summary.learned_roles || {}).length;
+      $("preferenceStats").textContent = `已评分 ${counts.worse + counts.same + counts.better + counts.human} 条 · 更好 ${counts.better} 条 · 像真人 ${counts.human} 条 · 已学习 ${learnedCount} 类表达`;
+    }
+
+    async function refreshPreferences() {
+      const summary = await api("/api/preferences");
+      if (summary.baseline_url) {
+        $("baselineCard").classList.remove("hidden");
+        $("baselineAudio").src = summary.baseline_url;
+      }
+      showPreferenceStats(summary);
+      comparisonConfig = summary.comparison || comparisonConfig;
+      const comparison = summary.comparison?.counts;
+      if (comparison && (comparison.continuous + comparison.smart + comparison.neither)) {
+        const pace = summary.comparison.pace_counts;
+        const punctuation = summary.comparison.punctuation_counts;
+        $("comparisonResult").innerHTML = `<p class="hint">路线校准：整段连贯胜 ${comparison.continuous} · 逐句编排胜 ${comparison.smart} · 都不像 ${comparison.neither}<br>语速校准：偏快胜 ${pace["0.95"]} · 偏慢胜 ${pace["1.05"]} · 都不像 ${pace.neither}<br>停顿校准：原标点胜 ${punctuation.original} · 分组停顿胜 ${punctuation.structured} · 都不像 ${punctuation.neither}</p>`;
+      }
+      if (comparisonConfig.next_dimension === "pace") {
+        $("comparisonHint").textContent = "已确认整段连贯更自然。下一轮两条都使用整段连贯，只比较整体语速；参数仍然隐藏。";
+        $("comparisonButton").textContent = "生成语速 A/B";
+      } else if (comparisonConfig.next_dimension === "complete") {
+        $("comparisonHint").textContent = "三项校准已完成。正常生成会采用你选出的整段连贯、较慢语速和分组式自然停顿。";
+        $("comparisonButton").textContent = "重新校准";
+      } else if (comparisonConfig.next_dimension === "punctuation") {
+        $("comparisonHint").textContent = "已确认整段连贯和较慢语速。下一轮不改模型参数，只比较原标点与分组式自然停顿。";
+        $("comparisonButton").textContent = "生成标点停顿 A/B";
+      }
+      if (!appliedRecommendation && comparisonConfig.recommended_mode) {
+        const mode = comparisonConfig.recommended_mode;
+        document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+        $("duration").value = String(comparisonConfig.recommended_duration ?? 1.0);
+        $("autoPunctuation").checked = comparisonConfig.recommended_text_style === "structured";
+        appliedRecommendation = true;
+        refreshMode();
+      }
+    }
+
+    async function rateOutput(filename, rating) {
+      const data = await ratingApi("/api/rate-output", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({filename, rating})});
+      showPreferenceStats(data.result);
+      await refreshHistory();
+      if (currentResultFilename === filename) {
+        const row = document.querySelector(`[data-current-rating="${CSS.escape(filename)}"]`);
+        if (row) row.innerHTML = ratingControls(filename, rating);
+      }
+    }
+
+    async function rateComparison(a, b, choice, dimension) {
+      const data = await ratingApi("/api/rate-comparison", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+        a_filename:a.filename, a_mode:a.mode, a_value:a.value,
+        b_filename:b.filename, b_mode:b.mode, b_value:b.value, choice, dimension
+      })});
+      const selected = choice === "neither" ? "两条都不像真人" : `${choice.toUpperCase()} 更自然`;
+      const counts = data.result.counts;
+      $("comparisonResult").insertAdjacentHTML("beforeend", `<p class="hint"><b>已记录：${selected}</b><br>累计：整段连贯胜 ${counts.continuous} · 逐句编排胜 ${counts.smart} · 都不像 ${counts.neither}</p>`);
+      document.querySelectorAll("#comparisonResult button").forEach(button => button.disabled = true);
+      comparisonConfig = data.result;
+      if (dimension === "pace") {
+        $("duration").value = String(data.result.recommended_duration);
+        updateRanges();
+        $("comparisonHint").textContent = "语速已记录。下一轮只比较原标点与分组式自然停顿。";
+        $("comparisonButton").textContent = "生成标点停顿 A/B";
+      }
+    }
+
+    async function generateComparison() {
+      if (busy) return;
+      const text = $("text").value.trim();
+      if (!text) { alert("请先输入一篇有代表性的文案。"); $("text").focus(); return; }
+      busy = true;
+      const button = $("comparisonButton");
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner" style="border-color:rgba(35,87,217,.25);border-top-color:var(--brand)"></span>正在顺序生成 A/B…';
+      $("comparisonResult").innerHTML = '<div class="result-empty">先分析文案，再顺序生成两条；不会并行运行…</div>';
+      try {
+        const dimension = comparisonConfig.next_dimension === "pipeline" ? "pipeline" : comparisonConfig.next_dimension === "pace" ? "pace" : "punctuation";
+        let variants;
+        if (dimension === "pipeline") {
+          const analyzed = await api("/api/analyze-emotion", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text, emo_alpha:0.75})});
+          variants = [
+            {mode:"continuous", value:1.0, payload:{mode:"emotion_audio", emotion_plan:null}},
+            {mode:"smart", value:1.0, payload:{mode:"smart_script", emotion_plan:analyzed.result.segments}}
+          ];
+        } else if (dimension === "pace") {
+          variants = [
+            {mode:"continuous", value:0.95, payload:{mode:"emotion_audio", emotion_plan:null}},
+            {mode:"continuous", value:1.05, payload:{mode:"emotion_audio", emotion_plan:null}}
+          ];
+        } else {
+          const prepared = await api("/api/prepare-text", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
+          variants = [
+            {mode:"continuous", value:"original", text, payload:{mode:"emotion_audio", emotion_plan:null}},
+            {mode:"continuous", value:"structured", text:prepared.result.text, payload:{mode:"emotion_audio", emotion_plan:null}}
+          ];
+        }
+        if (Math.random() < 0.5) variants.reverse();
+        const results = [];
+        for (let index = 0; index < variants.length; index++) {
+          $("comparisonResult").innerHTML = `<div class="result-empty">正在生成 ${index ? "B" : "A"}，请保持页面打开…</div>`;
+          const variant = variants[index];
+          const data = await api("/api/generate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+            text:variant.text || text, voice_path:voicePath, emotion_path:emotionPath, emo_alpha:0.75,
+            duration_factor:dimension === "pace" ? variant.value : (comparisonConfig.recommended_duration || 1.0), lang:$("lang").value, output_name:`自然度对比_${index ? "B" : "A"}`,
+            emo_vector:null, ...variant.payload
+          })});
+          results.push({...data.result, mode:variant.mode});
+        }
+        const [a, b] = results;
+        $("comparisonResult").innerHTML = `<div class="result-box"><b>A</b><audio controls preload="none" src="${a.url}"></audio><b>B</b><audio controls preload="none" src="${b.url}"></audio><div class="rating-row"><button class="rating-button" id="chooseA" type="button">A 更自然</button><button class="rating-button" id="chooseB" type="button">B 更自然</button><button class="rating-button" id="chooseNeither" type="button">两条都不像</button></div></div>`;
+        $("chooseA").addEventListener("click", () => rateComparison(a, b, "a", dimension).catch(error => alert(error.message)));
+        $("chooseB").addEventListener("click", () => rateComparison(a, b, "b", dimension).catch(error => alert(error.message)));
+        $("chooseNeither").addEventListener("click", () => rateComparison(a, b, "neither", dimension).catch(error => alert(error.message)));
+        await refreshHistory();
+      } catch (error) {
+        $("comparisonResult").innerHTML = `<div class="result-box" style="background:#fff2f2;color:var(--danger)"><b>A/B 生成失败</b><p>${escapeHtml(error.message)}</p></div>`;
+      } finally {
+        busy = false;
+        button.disabled = false;
+        button.textContent = "重新生成同文案 A/B";
+        await refreshStatus();
+      }
+    }
+
+    async function generate() {
+      if (busy) return;
+      const text = $("text").value.trim();
+      if (!text) { alert("请先输入文案。"); $("text").focus(); return; }
+      if (selectedMode() === "smart_script" && (!emotionPlan.length || analyzedText !== text)) {
+        alert("文案还没有分析，或分析后又被修改。请先点击“分析文案情绪”。");
+        return;
+      }
+      if (selectedMode() === "performance_script") {
+        if (!performancePlan.length || performanceText !== text) {
+          alert("请先点击“准备带读”，再逐段录音。");
+          return;
+        }
+        if (performancePlan.some(item => !item.emotion_path)) {
+          alert("还有带读分段没有录音，请全部录完后再生成。");
+          return;
+        }
+      }
+      busy = true;
+      const button = $("generateButton");
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner"></span>正在生成…';
+      $("result").innerHTML = '<div class="result-empty">正在加载/推理，请保持页面打开…</div>';
+      let generationText = text;
+      try {
+        if (selectedMode() === "emotion_audio" && $("autoPunctuation").checked) {
+          const prepared = await api("/api/prepare-text", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
+          generationText = prepared.result.text;
+        }
+      } catch (error) {
+        busy = false;
+        button.disabled = false;
+        button.textContent = selectedMode() === "performance_script" ? "生成带读增强版" : selectedMode() === "emotion_library" ? "用真人情绪库生成" : "生成语音";
+        alert(error.message);
+        return;
+      }
+      const payload = {
+        text:generationText,
+        voice_path: voicePath,
+        emotion_path: emotionPath,
+        mode: selectedMode(),
+        emo_alpha: Number($("alpha").value),
+        emo_vector: [...document.querySelectorAll(".vector")].map(item => Number(item.value)),
+        emotion_plan: selectedMode() === "smart_script" ? emotionPlan : null,
+        performance_plan: selectedMode() === "performance_script" ? performancePlan.map(item => ({text:item.text, emotion_path:item.emotion_path})) : null,
+        duration_factor: Number($("duration").value),
+        lang: $("lang").value,
+        output_name: $("outputName").value
+      };
+      try {
+        const data = await api("/api/generate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
+        const item = data.result;
+        currentResultFilename = item.filename;
+        const planLink = item.plan_url ? `<a class="secondary-button" href="${item.plan_url}" download>下载情绪方案</a>` : "";
+        const matches = item.library_matches?.length ? `<p class="hint">本次匹配：${item.library_matches.map(match => `${escapeHtml(match.role)} → ${match.number} 号 ${escapeHtml(match.cue)}`).join("；")}</p>` : "";
+        $("result").innerHTML = `<div class="result-box"><b>${escapeHtml(item.filename)}</b><audio controls autoplay src="${item.url}"></audio><div class="result-actions"><a class="secondary-button" href="${item.url}" download>下载 WAV</a>${planLink}</div><div class="metric-line"><span class="metric">时长 ${item.duration_seconds?.toFixed(2) ?? "—"}s</span><span class="metric">耗时 ${item.elapsed_seconds.toFixed(1)}s</span><span class="metric">RTF ${item.rtf?.toFixed(3) ?? "—"}</span></div>${matches}<div data-current-rating="${escapeHtml(item.filename)}">${ratingControls(item.filename)}</div></div>`;
+        await refreshHistory();
+      } catch (error) {
+        $("result").innerHTML = `<div class="result-box" style="background:#fff2f2;color:var(--danger)"><b>生成失败</b><p>${escapeHtml(error.message)}</p></div>`;
+      } finally {
+        busy = false;
+        button.disabled = false;
+        button.textContent = selectedMode() === "smart_script" ? "按情绪方案生成" : selectedMode() === "performance_script" ? "生成带读增强版" : selectedMode() === "emotion_library" ? "用真人情绪库生成" : "生成语音";
+        await refreshStatus();
+      }
+    }
+
+    $("text").addEventListener("input", () => {
+      $("charCount").textContent = $("text").value.length;
+      if (analyzedText && $("text").value.trim() !== analyzedText) {
+        emotionPlan = [];
+        analyzedText = "";
+        $("smartState").textContent = "文案已修改，请重新分析";
+        renderEmotionPlan();
+      }
+      if (performanceText && $("text").value.trim() !== performanceText) {
+        performancePlan.forEach(item => item.preview_url && URL.revokeObjectURL(item.preview_url));
+        performancePlan = [];
+        performanceText = "";
+        $("performanceState").textContent = "文案已修改，请重新准备";
+        renderPerformancePlan();
+      }
+    });
+    $("sampleButton").addEventListener("click", () => { $("text").value = SAMPLE_TEXT; $("text").dispatchEvent(new Event("input")); });
+    $("alpha").addEventListener("input", updateRanges);
+    $("duration").addEventListener("input", updateRanges);
+    document.querySelectorAll('input[name="mode"]').forEach(item => item.addEventListener("change", refreshMode));
+    $("voiceFile").addEventListener("change", event => upload(event.target.files[0], "voice").catch(error => alert(error.message)));
+    $("emotionFile").addEventListener("change", event => upload(event.target.files[0], "emotion").catch(error => alert(error.message)));
+    $("analyzeButton").addEventListener("click", analyzeEmotion);
+    $("preparePerformanceButton").addEventListener("click", preparePerformance);
+    $("performanceList").addEventListener("click", event => {
+      const button = event.target.closest("[data-performance-record]");
+      if (!button) return;
+      startPerformanceRecording(Number(button.dataset.performanceRecord)).catch(error => alert(error.message));
+    });
+    $("libraryStage").addEventListener("click", event => {
+      const move = event.target.closest("[data-library-move]");
+      if (move) {
+        moveEmotionLibrary(Number(move.dataset.libraryMove));
+        return;
+      }
+      if (event.target.closest("[data-library-record]")) {
+        toggleEmotionLibraryRecording().catch(error => alert(error.message));
+      }
+    });
+    $("generateButton").addEventListener("click", generate);
+    $("comparisonButton").addEventListener("click", generateComparison);
+    $("openFolderButton").addEventListener("click", () => api("/api/open-output", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}).catch(error => alert(error.message)));
+    $("openLibraryFolderButton").addEventListener("click", () => api("/api/open-emotion-library", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}).catch(error => alert(error.message)));
+    document.addEventListener("click", event => {
+      const button = event.target.closest(".rating-button");
+      if (!button || !button.dataset.ratingFile) return;
+      button.disabled = true;
+      rateOutput(button.dataset.ratingFile, button.dataset.rating).catch(error => alert(error.message));
+    });
+    refreshMode();
+    refreshStatus();
+    refreshHistory();
+    refreshPreferences();
+    refreshEmotionLibrary();
+    setInterval(refreshStatus, 5000);
+  </script>
+</body>
+</html>
